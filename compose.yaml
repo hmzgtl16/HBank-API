@@ -1,0 +1,11 @@
+services:
+
+  db:
+    image: 'postgres:latest'
+    container_name: db
+    environment:
+      - 'POSTGRES_DB=hbank_db'
+      - 'POSTGRES_PASSWORD=hbank_pass'
+      - 'POSTGRES_USER=hbank_root'
+    ports:
+      - '5432:5432'
