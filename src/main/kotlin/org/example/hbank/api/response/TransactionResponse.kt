@@ -1,22 +1,19 @@
 package org.example.hbank.api.response
 
-import org.example.hbank.api.utility.TransactionStatus
-import org.example.hbank.api.utility.TransactionType
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.example.hbank.api.util.TransactionStatus
+import org.example.hbank.api.util.TransactionType
+import org.example.hbank.api.util.UUIDSerializer
+import java.util.*
 
 @Serializable
 data class TransactionResponse(
 
+    @Serializable(with = UUIDSerializer::class)
     @SerialName(value = "reference")
-    val reference: String,
-
-    @SerialName(value = "created")
-    val created: Instant,
-
-    @SerialName(value = "modified")
-    val modified: Instant,
+    val reference: UUID,
 
     @SerialName(value = "amount")
     val amount: Double,
@@ -24,16 +21,22 @@ data class TransactionResponse(
     @SerialName(value = "fees")
     val fees: Double,
 
-    @SerialName(value = "type")
-    val type: TransactionType,
-
     @SerialName(value = "status")
     val status: TransactionStatus,
+
+    @SerialName(value = "type")
+    val type: TransactionType,
 
     @SerialName(value = "from")
     val from: AccountResponse,
 
     @SerialName(value = "to")
-    val to: AccountResponse
+    val to: AccountResponse,
+
+    @SerialName(value = "created_at")
+    val createdAt: Instant,
+
+    @SerialName(value = "modified_at")
+    val modifiedAt: Instant
 )
 

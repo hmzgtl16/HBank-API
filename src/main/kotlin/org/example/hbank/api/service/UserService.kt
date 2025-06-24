@@ -1,127 +1,174 @@
 package org.example.hbank.api.service
 
-import org.example.hbank.api.utility.Errors
-import jakarta.transaction.Transactional
-import org.example.hbank.api.model.*
-import org.example.hbank.api.repository.RolePrivilegeRepository
+import org.example.hbank.api.mapper.TokenMapper
+import org.example.hbank.api.mapper.UserMapper
+import org.example.hbank.api.model.User
+import org.example.hbank.api.model.UserRole
+import org.example.hbank.api.model.UserRoleRepository
+import org.example.hbank.api.model.UserToken
+import org.example.hbank.api.repository.RoleRepository
+import org.example.hbank.api.repository.TokenRepository
 import org.example.hbank.api.repository.UserRepository
-import org.example.hbank.api.repository.UserRoleRepository
-import org.springframework.http.HttpStatus
-import org.springframework.security.core.GrantedAuthority
-import org.springframework.security.core.authority.SimpleGrantedAuthority
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.core.userdetails.UserDetails
-import org.springframework.security.core.userdetails.UserDetailsService
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.example.hbank.api.repository.UserTokenRepository
+import org.example.hbank.api.request.*
+import org.example.hbank.api.util.EmailAlreadyExistException
+import org.example.hbank.api.util.EmailAlreadyVerifiedException
+import org.example.hbank.api.util.EmailContent
+import org.example.hbank.api.util.EmailNotFoundException
+import org.example.hbank.api.util.EmailNotVerifiedException
+import org.example.hbank.api.util.Generator
+import org.example.hbank.api.util.RoleNotFoundException
+import org.example.hbank.api.util.Roles
+import org.example.hbank.api.util.TokenType
+import org.example.hbank.api.util.UsernameAlreadyExistException
+import org.example.hbank.api.util.VerificationCodeExpiredException
+import org.example.hbank.api.util.VerificationCodeNotFoundException
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
-import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.support.TransactionTemplate
-import org.springframework.web.server.ResponseStatusException
-import java.time.Clock
-import java.time.Instant
+import org.springframework.transaction.annotation.Transactional
+
+interface UserService {
+    fun registerUser(request: RegisterUserRequest)
+    fun sendVerifyEmail(request: SendVerifyEmailRequest)
+    fun verifyEmail(request: VerifyEmailRequest)
+    fun forgotPassword(request: ForgotPasswordRequest)
+    fun resetPassword(request: ResetPasswordRequest)
+}
 
 @Service
-@Transactional
-class UserService(
-    transactionManager: PlatformTransactionManager,
-    private val clock: Clock,
+class UserServiceImpl(
+    private val roleRepository: RoleRepository,
+    private val tokenRepository: TokenRepository,
     private val userRepository: UserRepository,
     private val userRoleRepository: UserRoleRepository,
-    private val rolePrivilegeRepository: RolePrivilegeRepository
-) : UserDetailsService {
+    private val userTokenRepository: UserTokenRepository,
+    private val tokenMapper: TokenMapper,
+    private val userMapper: UserMapper,
+    private val mailSender: MailSender,
+    private val passwordEncoder: PasswordEncoder
+) : UserService {
 
-    private val transactionTemplate = TransactionTemplate(transactionManager)
+    @Transactional
+    override fun registerUser(request: RegisterUserRequest) {
 
-    fun registerUser(
-        email: String,
-        username: String,
-        password: String,
-    ): User {
+        validateNewUser(request = request)
 
-        val user = User(
-            email = email,
-            username = username,
-            password = BCryptPasswordEncoder().encode(password),
-            created = Instant.now(clock)
-        )
+        val user = userMapper
+            .toEntity(request = request)
+            .copy(password = passwordEncoder.encode(request.password))
+            .also(block = userRepository::save)
 
-        return userRepository.save(user)
-    }
+        addRoleUser(user = user)
 
-    fun enableUser(user: User): User {
-        user.enabled = true
+        val userToken = newUserToken(user = user, type = TokenType.VERIFY_EMAIL)
 
-        return userRepository.save(user)
-    }
-
-    fun resetPassword(user: User, password: String): User {
-        user.password = BCryptPasswordEncoder().encode(password)
-        return userRepository.save(user)
-    }
-
-    fun getUserByUsername(username: String): User? =
-        userRepository.findUserByUsername(username = username)
-
-    fun getUserByEmail(email: String): User? =
-        userRepository.findUserByEmail(email = email)
-
-    fun getUserByPhoneNumber(phoneNumber: String): User? =
-        userRepository.findUserByPhoneNumber(phoneNumber = phoneNumber)
-
-    fun getUserByVerifyEmailToken(verifyEmailToken: UserVerifyEmailToken): User? = verifyEmailToken.user
-
-    fun getUserByResetPasswordToken(resetPasswordToken: UserResetPasswordToken): User? = resetPasswordToken.user
-
-    fun userExistsByUsername(username: String): Boolean =
-        userRepository.existsUserByUsername(username = username)
-
-    fun userExistsByEmail(email: String): Boolean =
-        userRepository.existsUserByEmail(email = email)
-
-    fun userExistsByPhoneNumber(phoneNumber: String): Boolean =
-        userRepository.existsUserByPhoneNumber(phoneNumber = phoneNumber)
-
-    fun getAuthenticatedUser(): User? {
-        val userDetails = SecurityContextHolder.getContext()
-            .authentication.principal as UserDetails
-
-        return getUserByUsername(username = userDetails.username)
-    }
-
-    fun getUserPrivileges(user: User): List<Privilege> =
-        userRoleRepository
-            .findUserRolesByUser(user = user)
-            .mapNotNull(UserRole::role)
-            .flatMap(rolePrivilegeRepository::findRolePrivilegesByRole)
-            .mapNotNull(RolePrivilege::privilege)
-
-    override fun loadUserByUsername(username: String): UserDetails = transactionTemplate
-        .execute {
-            val user = getUserByUsername(username = username)
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, Errors.USER_NOT_FOUND)
-
-            val authorities = getUserPrivileges(user = user)
-                .map(Privilege::asAuthority)
-
-            org.springframework.security.core.userdetails.User(
-                user.username,
-                user.password,
-                user.enabled,
-                true,
-                true,
-                true,
-                authorities
+        mailSender.sendEmail(
+            EmailContent.VerifyEmail(
+                to = userToken.user.email,
+                username = userToken.user.username,
+                token = userToken.token.value
             )
-        } ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, Errors.USER_NOT_FOUND)
+        )
+    }
 
-    fun isUserVerified(email: String): Boolean =
-        userRepository.existsUserByEmailAndEnabledIsTrue(email = email)
+    @Transactional
+    override fun sendVerifyEmail(request: SendVerifyEmailRequest) {
 
-    fun addRoleToUser(role: Role, user: User): UserRole {
-        val userRole = UserRole(user = user, role = role)
+        val user = userRepository.findUserByEmail(email = request.email)
+            ?: throw EmailNotFoundException()
 
-        return userRoleRepository.save(userRole)
+        if (user.enabled)
+            throw EmailAlreadyVerifiedException()
+
+        val userToken = newUserToken(user = user, type = TokenType.VERIFY_EMAIL)
+
+        mailSender.sendEmail(
+            EmailContent.VerifyEmail(
+                to = userToken.user.email,
+                username = userToken.user.username,
+                token = userToken.token.value
+            )
+        )
+    }
+
+    @Transactional
+    override fun verifyEmail(request: VerifyEmailRequest) {
+        val userToken = userTokenRepository.findUserTokenByTokenValue(value = request.verificationCode)
+            ?: throw VerificationCodeNotFoundException()
+
+        if (userToken.user.enabled)
+            throw EmailAlreadyVerifiedException()
+
+        if (tokenMapper.isExpired(token = userToken.token))
+            throw VerificationCodeExpiredException()
+
+        userRepository.save(userToken.user.copy(enabled = true))
+        userTokenRepository.deleteUserTokensByUserIdAndType(id = userToken.user.id!!, type = TokenType.VERIFY_EMAIL)
+    }
+
+    @Transactional
+    override fun forgotPassword(request: ForgotPasswordRequest) {
+
+        val user = userRepository.findUserByEmail(email = request.email)
+            ?: throw EmailNotFoundException()
+
+        if (!user.enabled)
+            throw EmailNotVerifiedException()
+
+        val userToken = newUserToken(user = user, type = TokenType.RESET_PASSWORD)
+
+        mailSender.sendEmail(
+            EmailContent.ForgotPassword(
+                to = userToken.user.email,
+                username = userToken.user.username,
+                token = userToken.token.value
+            )
+        )
+    }
+
+    @Transactional
+    override fun resetPassword(request: ResetPasswordRequest) {
+        val userToken = userTokenRepository.findUserTokenByTokenValue(value = request.verificationCode)
+            ?: throw VerificationCodeNotFoundException()
+
+        if (!userToken.user.enabled)
+            throw EmailNotVerifiedException()
+
+        if (tokenMapper.isExpired(token = userToken.token))
+            throw VerificationCodeExpiredException()
+
+        userRepository.save(userToken.user.copy(password = passwordEncoder.encode(request.password)))
+        userTokenRepository.deleteUserTokensByUserIdAndType(id = userToken.user.id!!, type = TokenType.RESET_PASSWORD)
+    }
+
+    private fun newUserToken(user: User, type: TokenType): UserToken {
+        userTokenRepository.deleteUserTokensByUserIdAndType(id = user.id!!, type = type)
+        val token = tokenRepository.save(tokenMapper.toEntity(value = generateTokenValue()))
+        return userTokenRepository.save(UserToken(user = user, token = token, type = type))
+    }
+
+    private fun addRoleUser(user: User) {
+        val role = roleRepository.findRoleByName(name = Roles.ROLE_USER)
+            ?: throw RoleNotFoundException()
+        userRoleRepository.save(UserRole(user = user, role = role))
+    }
+
+    private fun validateNewUser(request: RegisterUserRequest) {
+
+        if (userRepository.existsUserByUsername(username = request.username))
+            throw UsernameAlreadyExistException()
+
+        if (userRepository.existsUserByEmail(email = request.email))
+            throw EmailAlreadyExistException()
+    }
+
+    private fun generateTokenValue(): String {
+        var value: String
+        do {
+            value = Generator.generateDecString()
+        } while (tokenRepository.existsTokenByValue(value = value))
+
+        return value
     }
 }
 
-private fun Privilege.asAuthority(): GrantedAuthority = SimpleGrantedAuthority(name)

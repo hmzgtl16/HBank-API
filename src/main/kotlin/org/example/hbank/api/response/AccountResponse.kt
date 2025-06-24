@@ -5,12 +5,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AccountResponse(
-    @SerialName(value = "name")
-    val name: String,
-
-    @SerialName(value = "number")
-    val number: String,
-
-    @SerialName(value = "avatar")
-    val avatar: String?
+    @SerialName(value = "name") val name: String,
+    @SerialName(value = "number") val number: String,
+    @SerialName(value = "avatar") val avatar: String?
 )

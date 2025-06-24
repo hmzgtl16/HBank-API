@@ -1,54 +1,53 @@
 package org.example.hbank.api.model
 
 import jakarta.persistence.*
-import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Size
+import org.hibernate.proxy.HibernateProxy
 import java.time.Instant
 import java.time.LocalDate
 import java.util.*
 
 @Entity
-@Table(
-    name = "table_customer", uniqueConstraints = [
-        UniqueConstraint(name = "uktclr3py2ufm46h34codf4kh8f", columnNames = ["address_id"]),
-        UniqueConstraint(name = "ukd2dx1i9vju7nc0g6mtqeuly19", columnNames = ["avatar_id"]),
-        UniqueConstraint(name = "ukrxmtouhh3ealchoymptvm5oo6", columnNames = ["user_id"])
-    ]
-)
-class Customer(
-    @Size(max = 255)
-    @Column(name = "customer_firstname")
-    var firstname: String = "",
-    @Size(max = 255)
-    @Column(name = "customer_lastname")
-    var lastname: String = "",
-    @Column(name = "customer_birthdate")
-    var birthdate: LocalDate? = null,
-    @NotNull
-    @Column(name = "customer_created", nullable = false)
-    var created: Instant,
-    @NotNull
-    @Column(name = "customer_modified", nullable = false)
-    var modified: Instant,
-    @NotNull
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    var user: User
-) {
+@Table(name = "table_customer")
+data class Customer(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "customer_id", nullable = false)
-    var id: UUID? = null
+    @Column(name = "customer_id") val id: UUID? = null,
+    @Column(name = "customer_first_name") val firstname: String? = null,
+    @Column(name = "customer_last_name") val lastname: String? = null,
+    @Column(name = "customer_birthdate") val birthdate: LocalDate? = null,
+    @Column(name = "customer_verified", nullable = false) val verified: Boolean = false,
+    @Column(name = "customer_created_at", nullable = false) val createdAt: Instant,
+    @Column(name = "customer_modified_at", nullable = false) val modifiedAt: Instant,
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "customer_user_id", unique = true, nullable = false, updatable = false)
+    val user: User,
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "customer_address_id", unique = true)
+    val address: Address? = null,
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "customer_file_id", unique = true)
+    val avatar: File? = null
+) {
 
-    @NotNull
-    @Column(name = "customer_verified", nullable = false)
-    var verified: Boolean? = false
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "address_id")
-    var address: Address? = null
+    final override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null) return false
+        val oEffectiveClass =
+            if (other is HibernateProxy) other.hibernateLazyInitializer.persistentClass else other.javaClass
+        val thisEffectiveClass =
+            if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass else this.javaClass
+        if (thisEffectiveClass != oEffectiveClass) return false
+        other as Customer
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "avatar_id")
-    var avatar: File? = null
+        return id != null && id == other.id
+    }
+
+    final override fun hashCode(): Int =
+        if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
+
+    @Override
+    override fun toString(): String {
+        return this::class.simpleName + "(  id = $id   ,   firstname = $firstname   ,   lastname = $lastname   ,   birthdate = $birthdate   ,   verified = $verified   ,   createdAt = $createdAt   ,   modifiedAt = $modifiedAt )"
+    }
 }

@@ -6,5 +6,5 @@ import java.util.*
 
 interface RoleRepository : JpaRepository<Role, UUID> {
 
-    fun getRoleByName(name: String): Role?
+    fun findRoleByName(name: String): Role?
 }

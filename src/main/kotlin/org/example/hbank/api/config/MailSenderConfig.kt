@@ -1,5 +1,6 @@
 package org.example.hbank.api.config
 
+import jakarta.mail.internet.MimeMessage
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -25,14 +26,12 @@ class MailSenderConfig(
 
         host = mailServerHost
         port = mailServerPort
+        protocol = mailServerProtocol
         username = mailServerUsername
         password = mailServerPassword
-        protocol = mailServerProtocol
-
-       /* javaMailProperties.let {
-            it["spring.mail.properties.mail.smtp.auth"] = "true"
-            it["spring.mail.properties.mail.smtp.starttls.enable"] = "true"
-            it["spring.mail.properties.mail.debug"] = "true"
-        }*/
     }
+
+    @Bean
+    fun provideMimeMessage(javaMailSender: JavaMailSender): MimeMessage =
+        javaMailSender.createMimeMessage()
 }

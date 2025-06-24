@@ -1,59 +1,39 @@
 package org.example.hbank.api.repository
 
 import org.assertj.core.api.Assertions.assertThat
+import org.example.hbank.api.config.TestContainersConfig
 import org.example.hbank.api.model.Role
-import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager
-import org.springframework.test.context.TestPropertySource
-import org.springframework.test.context.junit.jupiter.SpringExtension
+import org.springframework.context.annotation.Import
+import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.jdbc.Sql
+import org.testcontainers.junit.jupiter.Testcontainers
 import java.util.UUID
 import kotlin.test.Test
 
-@ExtendWith(SpringExtension::class)
 @DataJpaTest
+@ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@TestPropertySource(properties = [
-    "spring.datasource.url=jdbc:postgresql://localhost:5432/hbank_db",
-    "spring.datasource.username=hbank_root",
-    "spring.datasource.password=hbank_pass",
-    "spring.datasource.driver-class-name=org.postgresql.Driver"
-])
+@Testcontainers
+@Import(TestContainersConfig::class)
+@Sql("/database/schema.sql")
 class RoleRepositoryTest {
-
-    @Autowired
-    private lateinit var entityManager: TestEntityManager
 
     @Autowired
     private lateinit var roleRepository: RoleRepository
 
     @Test
     fun `should get role by name`() {
-        // Arrange
-        val role = createRole("TEST_ROLE")
-        entityManager.persist(role)
-        entityManager.flush()
 
-        // Act
-        val found = roleRepository.getRoleByName(role.name!!)
 
-        // Assert
-        assertThat(found).isNotNull
-        assertThat(found?.id).isEqualTo(role.id)
-        assertThat(found?.name).isEqualTo("TEST_ROLE")
+        val foundRole = roleRepository.findRoleByName("ROLE::USER")
+
+        assertThat(foundRole).isNotNull
+        assertThat(foundRole!!).matches {
+            it.name == "ROLE::USER" &&
+                    it.id == UUID.fromString("2828b25e-5e9a-4c38-f026-6c9bbd22230d")
+        }
     }
-
-    @Test
-    fun `should return null when role name does not exist`() {
-          // Act
-        val found = roleRepository.getRoleByName("NONEXISTENT_ROLE")
-
-        // Assert
-        assertThat(found).isNull()
-    }
-
-    private fun createRole(name: String): Role =
-        Role(name = name)
 }

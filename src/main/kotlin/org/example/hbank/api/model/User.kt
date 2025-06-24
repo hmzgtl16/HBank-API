@@ -1,47 +1,51 @@
 package org.example.hbank.api.model
 
+
 import jakarta.persistence.*
-import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Size
+import org.hibernate.proxy.HibernateProxy
 import java.time.Instant
-import java.time.OffsetDateTime
 import java.util.*
 
 @Entity
-@Table(
-    name = "table_user", uniqueConstraints = [
-        UniqueConstraint(name = "ukijm6au1nwxkpta71qvup7x2nw", columnNames = ["user_email_address"]),
-        UniqueConstraint(name = "uk9v0ipmihebk2p0yj7wru85p1o", columnNames = ["user_phone_number"]),
-        UniqueConstraint(name = "ukgh2jnueqrabc2vvpo7jbld12s", columnNames = ["user_username"])
-    ]
-)
-class User(
-    @Size(max = 255)
-    @NotNull
-    @Column(name = "user_email_address", nullable = false)
-    var email: String,
-    @Size(max = 20)
-    @NotNull
-    @Column(name = "user_username", nullable = false, length = 20)
-    var username: String,
-    @Size(max = 255)
-    @NotNull
-    @Column(name = "user_password", nullable = false)
-    var password: String,
-    @Size(max = 255)
-    @Column(name = "user_phone_number")
-    var phoneNumber: String? = null,
-    @NotNull
-    @Column(name = "user_created", nullable = false)
-    var created: Instant
-) {
+@Table(name = "table_user")
+data class User(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "user_id", nullable = false)
-    var id: UUID? = null
+    @Column(name = "user_id") val id: UUID? = null,
+    @Column(name = "user_email", nullable = false, unique = true) val email: String,
+    @Column(name = "user_username", nullable = false, unique = true) val username: String,
+    @Column(name = "user_password", nullable = false) val password: String,
+    @Column(name = "user_phone_number", unique = true) val phoneNumber: String? = null,
+    @Column(name = "user_created_at", nullable = false) val createdAt: Instant,
+    @Column(name = "user_modified_at", nullable = false) val modifiedAt: Instant,
+    @Column(name = "user_enabled", nullable = false) val enabled: Boolean = false
+) {
 
-    @NotNull
-    @Column(name = "user_enabled", nullable = false)
-    var enabled: Boolean = false
 
+    @OneToMany(mappedBy = "user")
+val roles: Set<UserRole> = hashSetOf()
+
+    @OneToMany(mappedBy = "user")
+    val tokens: Set<UserToken> = hashSetOf()
+
+
+    final override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null) return false
+        val oEffectiveClass =
+            if (other is HibernateProxy) other.hibernateLazyInitializer.persistentClass else other.javaClass
+        val thisEffectiveClass =
+            if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass else this.javaClass
+        if (thisEffectiveClass != oEffectiveClass) return false
+        other as User
+
+        return id != null && id == other.id
+    }
+
+    final override fun hashCode(): Int =
+        if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
+
+    override fun toString(): String {
+        return this::class.simpleName + "(  id = $id   ,   email = $email   ,   username = $username   ,   password = $password   ,   phoneNumber = $phoneNumber   ,   createdAt = $createdAt   ,   modifiedAt = $modifiedAt   ,   enabled = $enabled )"
+    }
 }

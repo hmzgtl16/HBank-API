@@ -1,60 +1,59 @@
 package org.example.hbank.api.model
 
-import jakarta.persistence.*
-import jakarta.validation.constraints.NotNull
-import org.hibernate.Hibernate
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.Embeddable
+import jakarta.persistence.EmbeddedId
+import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.MapsId
+import jakarta.persistence.Table
+import org.hibernate.proxy.HibernateProxy
 import java.io.Serializable
-import java.util.*
+import java.util.Objects
+import java.util.UUID
 
 @Entity
 @Table(name = "table_account_token")
-class AccountToken(
-    @MapsId("tokenId")
-    @ManyToOne(
-        fetch = FetchType.LAZY,
-        optional = false
-    )
-    @JoinColumn(name = "token_id", nullable = false)
-    val token: Token,
-    @MapsId("accountId")
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-        name = "account_id",
-        nullable = false
-    )
-    val account: Account
-) : Serializable {
-    @EmbeddedId
-    var id: AccountTokenId? = null
+data class AccountToken(
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId(value = "accountId")
+    @JoinColumn(name = "account_id")
+    val account: Account,
+    @ManyToOne(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
+    @MapsId(value = "tokenId")
+    @JoinColumn(name = "token_id")
+    val token: Token
+) {
 
-    init {
-        this.id = AccountTokenId(accountId = account.id!!, tokenId = token.id!!)
+    @EmbeddedId
+    var id: AccountTokenId = AccountTokenId(account.id!!, token.id!!)
+
+    final override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null) return false
+        val oEffectiveClass =
+            if (other is HibernateProxy) other.hibernateLazyInitializer.persistentClass else other.javaClass
+        val thisEffectiveClass =
+            if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass else this.javaClass
+        if (thisEffectiveClass != oEffectiveClass) return false
+        other as AccountToken
+
+        return id == other.id
     }
+
+    final override fun hashCode(): Int = Objects.hash(id);
+
+    override fun toString(): String {
+        return this::class.simpleName + "(EmbeddedId = $id )"
+    }
+
 }
 
 @Embeddable
-class AccountTokenId(
-    @NotNull
-    @Column(name = "account_id", nullable = false)
-    val accountId: UUID,
-    @NotNull
-    @Column(name = "token_id", nullable = false)
-    val tokenId: UUID
-) : Serializable {
-
-    override fun hashCode(): Int = Objects.hash(accountId, tokenId)
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || Hibernate.getClass(this) != Hibernate.getClass(other)) return false
-
-        other as AccountTokenId
-
-        return accountId == other.accountId &&
-                tokenId == other.tokenId
-    }
-
-    companion object {
-        private const val serialVersionUID = -1545475922446876555L
-    }
-}
+data class AccountTokenId(
+    @Column(name = "account_id") val accountId: UUID,
+    @Column(name = "token_id") val tokenId: UUID
+): Serializable

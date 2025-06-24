@@ -1,7 +1,7 @@
 services:
 
   db:
-    image: 'postgres:latest'
+    image: 'postgres:13.21'
     container_name: db
     environment:
       - 'POSTGRES_DB=hbank_db'

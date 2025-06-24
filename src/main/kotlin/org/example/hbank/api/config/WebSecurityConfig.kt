@@ -1,39 +1,42 @@
 package org.example.hbank.api.config
 
-import org.example.hbank.api.utility.Privileges
+import org.example.hbank.api.util.Privileges
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 class WebSecurityConfig(
-    private val corsConfigurationSource: CorsConfigurationSource
+    private val authorizationFilter: AuthorizationFilter
 ) {
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .cors { it.configurationSource(corsConfigurationSource) }
+            .cors(CorsConfigurer<HttpSecurity>::disable)
             .csrf(CsrfConfigurer<HttpSecurity>::disable)
-            .authorizeHttpRequests { it ->
-              /*  it
+            .authorizeHttpRequests {
+                /*
+                it
                     .dispatcherTypeMatchers(DispatcherType.ERROR)
-                    .permitAll()*/
+                    .permitAll()
+                */
 
                 it
-                    .requestMatchers("/api/v1/user/**")
+                    .requestMatchers("/api/v1/users/**")
                     .permitAll()
 
                 it
@@ -87,7 +90,8 @@ class WebSecurityConfig(
                 it.authenticationEntryPoint(BearerTokenAuthenticationEntryPoint())
                 it.accessDeniedHandler(BearerTokenAccessDeniedHandler())
             }
-            .httpBasic(Customizer.withDefaults())
+            //.authenticationManager(authenticationManager)
+            .addFilterBefore(authorizationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()
     }

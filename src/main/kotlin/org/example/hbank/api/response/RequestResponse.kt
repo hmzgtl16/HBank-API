@@ -3,7 +3,7 @@ package org.example.hbank.api.response
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.example.hbank.api.utility.RequestStatus
+import org.example.hbank.api.util.RequestStatus
 
 @Serializable
 data class RequestResponse(
