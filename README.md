@@ -148,3 +148,10 @@ src
 └── test
     ├── kotlin          # Test classes
     └── resources       # Test resources
+```
+
+## License
+
+```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
